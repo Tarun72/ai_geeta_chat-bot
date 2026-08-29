@@ -1,0 +1,20 @@
+[project]
+name = "ai-bhagwat-geeta-chatbot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pypdf",
+    "openai>=1.0.0",
+    "python-dotenv",
+    "pinecone",
+    "fastapi",
+    "uvicorn[standard]",
+]
+
+[tool.setuptools.packages.find]
+include = ["ingestion*", "config*", "embeddings*", "vector_store*", "chat*", "api*"]
+
+[tool.uv]
+package = true

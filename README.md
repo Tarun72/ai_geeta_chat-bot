@@ -2,7 +2,9 @@
 
 **Ask Krishna's Wisdom** — answers grounded in *Bhagavad-gita As It Is*, with chapter and verse citations.
 
-![Bhagavad Gita RAG Chatbot demo](docs/assets/demo.gif)
+<video src="docs/assets/demo.mov" controls autoplay muted loop playsinline width="100%">
+  Bhagavad Gita RAG Chatbot demo
+</video>
 
 ---
 
@@ -47,26 +49,90 @@ No LangChain — the RAG pipeline is implemented end to end with the OpenAI SDK 
 
 ---
 
+## Getting Started
+
+See [docs/SETUP.md](docs/SETUP.md) for prerequisites, environment setup, one-time indexing, and how to run the backend and frontend locally.
+
+---
+
 ## Architecture
 
+The system has two independent pipelines that share only the Pinecone index — ingestion runs once offline via CLI, while the chat app queries the pre-built index at runtime.
+
+### System Overview
+
 ```mermaid
-flowchart LR
-    PDF["Bhagavad-gita PDF"] --> Parser["gita_parser"]
-    Parser --> Embedder["OpenAI Embeddings"]
-    Embedder --> Pinecone["Pinecone Index"]
-    User["User Question"] --> QueryEmbed["Query Embedding"]
-    QueryEmbed --> Pinecone
-    Pinecone --> Context["Top-K Verses"]
-    Context --> LLM["GPT-4o-mini"]
-    LLM --> SSE["FastAPI SSE"]
-    SSE --> UI["React Frontend"]
+flowchart TB
+    subgraph ingestion ["One-time ingestion (offline CLI)"]
+        PDF["Bhagavad-gita PDF"] --> Parser["pdf_loader + gita_parser"]
+        Parser --> Embed["OpenAI Embeddings"]
+        Embed --> Pinecone[("Pinecone Index")]
+    end
+
+    subgraph runtime ["Runtime user flow (on every question)"]
+        User["User"] --> UI["React Frontend"]
+        UI --> API["FastAPI /api/chat"]
+        API --> RAG["GitaChat RAG"]
+        RAG --> Pinecone
+        RAG --> LLM["GPT-4o-mini"]
+        LLM --> SSE["SSE stream"]
+        SSE --> UI
+    end
 ```
 
-**Ingestion:** A PDF of *Bhagavad-gita As It Is* is parsed into structured verses (translation + commentary), embedded, and stored in Pinecone.
+### Offline Ingestion Pipeline
 
-**Retrieval:** The user's question is embedded and matched against verse vectors; the top results become context for the LLM.
+Run once before deploying the chat app — completely separate from user requests.
 
-**Generation:** GPT-4o-mini synthesizes an answer from that context and streams it to the React frontend, along with source metadata for citation cards.
+```mermaid
+flowchart TB
+    CLI["Step 1 — Run indexing CLI\nuv run python scripts/index_all.py"]
+    Parse["Step 2 — Parse PDF into verses\nGitaIndexer → PdfLoader → gita_parser"]
+    Embed["Step 3 — Embed verse text\nOpenAI text-embedding-3-small"]
+    Store["Step 4 — Upsert vectors\nPinecone index: gita-verses"]
+
+    CLI --> Parse --> Embed --> Store
+```
+
+- **Trigger:** Run once before deploying the chat app — completely separate from user requests.
+- **Input:** `data/Bhagavad-gita-As-It-Is.pdf` (local, gitignored).
+- **Output:** ~700 verse vectors stored in Pinecone with translation, commentary, and chapter/verse metadata.
+- **After indexing:** The index persists in Pinecone; the FastAPI app only reads from it — no PDF or ingestion code runs at request time.
+
+### User Flow
+
+Every question triggers the runtime pipeline below. The frontend receives three SSE event types from `POST /api/chat`: `sources` (retrieved verses), `token` (streamed answer text), and `done`.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant React as React Frontend
+    participant API as FastAPI
+    participant Chat as GitaChat
+    participant Pinecone
+    participant OpenAI
+
+    User->>React: Type question and submit
+    React->>API: POST /api/chat (SSE)
+    API->>Chat: ask_stream(question, top_k)
+    Chat->>Pinecone: Embed query + similarity search
+    Pinecone-->>Chat: Top-K verse matches
+    Chat-->>API: sources metadata
+    API-->>React: SSE event sources
+    React-->>User: Show source citation cards
+    Chat->>OpenAI: Stream completion with verse context
+    loop Each token
+        OpenAI-->>Chat: token
+        Chat-->>API: token
+        API-->>React: SSE event token
+        React-->>User: Append to answer card
+    end
+    API-->>React: SSE event done
+```
+
+1. **Landing** — User types a question or picks an example prompt in the React chat window.
+2. **Streaming answer** — Source cards appear first (`sources` event), then GPT-4o-mini streams the answer token by token (`token` events) into the *Krishna's Wisdom* card.
+3. **Source attribution** — Retrieved verses remain visible with chapter, verse, relevance score, and text preview for every answer.
 
 ---
 

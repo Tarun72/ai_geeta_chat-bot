@@ -2,9 +2,9 @@
 
 **Ask Krishna's Wisdom** — answers grounded in *Bhagavad-gita As It Is*, with chapter and verse citations.
 
-<video src="docs/assets/demo.mov" controls autoplay muted loop playsinline width="100%">
-  Bhagavad Gita RAG Chatbot demo
-</video>
+[![Bhagavad Gita RAG Chatbot demo](docs/assets/demo.gif)](https://github.com/Tarun72/ai_geeta_chat-bot/blob/master/docs/assets/demo.mov)
+
+*Click the demo to watch the full screen recording.*
 
 ---
 

@@ -4,7 +4,7 @@
 
 [![Bhagavad Gita RAG Chatbot demo](docs/assets/demo.gif)](https://github.com/Tarun72/ai_geeta_chat-bot/blob/master/docs/assets/demo.mov)
 
-*Click the demo to watch the full screen recording.*
+For the full workflow, see [`docs/assets/demo.mov`](docs/assets/demo.mov).
 
 ---
 
